@@ -6,16 +6,18 @@ The project demonstrates LLM-to-system integration, robust backend design, and p
 
 
 ## Features
-	•	Natural language → structured event extraction via LLM Agent
-	•	RESTful backend built with Spring Boot + JPA
-	•	Event persistence with MySQL
-	•	External service synchronization (Notion API)
-	•	Retry & failure-handling mechanism for async integrations
-	•	Secure configuration using environment variables (no secrets in code)
+
+-	Natural language → structured event extraction via LLM Agent
+-	RESTful backend built with Spring Boot + JPA
+-	Event persistence with MySQL
+-	External service synchronization (Notion API)
+-	Retry & failure-handling mechanism for async integrations
+-	Secure configuration using environment variables (no secrets in code)
 
 ## Tech Stack
-	•	Backend: Java 21, Spring Boot, Spring Data JPA
-	•	Database: MySQL (Dockerized)
-	•	AI / LLM: Prompt-based LLM Agent (CLI)
-	•	DevOps: Docker, Docker Compose
-	•	Config Management: Environment Variables
+
+-	Backend: Java 21, Spring Boot, Spring Data JPA
+-	Database: MySQL (Dockerized)
+-	AI / LLM: Prompt-based LLM Agent (CLI)
+-	DevOps: Docker, Docker Compose
+-	Config Management: Environment Variables
