@@ -3,33 +3,62 @@ package com.example.notiontest.Service;
 import com.example.notiontest.DTO.EventRequest;
 import com.example.notiontest.DTO.EventResponse;
 import com.example.notiontest.DTO.Event_Single;
+import com.example.notiontest.Entity.IdempotencyRecord;
 import com.example.notiontest.Entity.SyncStatus;
 import com.example.notiontest.Repository.EventRepository;
 import com.example.notiontest.Entity.Event;
+import com.example.notiontest.Repository.IdempotencyRecordRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import lombok.extern.slf4j.Slf4j; // log
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+
+@Slf4j // log
 @Service
 public class EventService {
     private final NotionService notionService;
-    private final GoogleCalendarService calendarService;
     private final EventRepository eventRepository;
+    private final IdempotencyRecordRepository idempotencyRecordRepository;
+    private final ObjectMapper objectMapper;
 
-    public EventService(NotionService notionService, GoogleCalendarService calendarService, EventRepository eventRepository) {
+    public EventService(NotionService notionService,
+                        EventRepository eventRepository,
+                        IdempotencyRecordRepository idempotencyRecordRepository,
+                        ObjectMapper objectMapper
+    ){
         this.notionService = notionService;
-        this.calendarService = calendarService;
         this.eventRepository = eventRepository;
+        this.idempotencyRecordRepository = idempotencyRecordRepository;
+        this.objectMapper = objectMapper;
     }
 
-    public EventResponse schedule(EventRequest req){
+    public ResponseEntity<EventResponse> schedule(EventRequest req, String idemKey){
         ZonedDateTime zdt = LocalDateTime.parse(req.getStartDate()).atZone(ZoneId.of("Asia/Taipei"));
         String dateWithOffset = zdt.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+
+        // 判斷是否為重複加入
+        final String requestPath = "/api/events";
+
+        var existing = idempotencyRecordRepository
+                .findByIdemKeyAndRequestPath(idemKey, requestPath);
+
+        if (existing.isPresent()) {
+            IdempotencyRecord rec = existing.get();
+            try {
+                EventResponse cached = objectMapper.readValue(rec.getResponseBodyJson(), EventResponse.class);
+                return ResponseEntity.status(rec.getStatusCode()).body(cached);
+            } catch (Exception e) {
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Deserialize cached response failed");
+            }
+        }
 
         Event event = Event.builder()
                 .title(req.getTitle())
@@ -51,18 +80,31 @@ public class EventService {
 
         eventRepository.save(event);
 
-        return new EventResponse(
+        EventResponse response = new EventResponse(
                 event.getId(),
                 event.getNotionSyncStatus(),
                 event.getNotionSyncError()
         );
 
-        // calendarService.addEvent(req.getTitle(), req.getNotes(), req.getStartDate(), req.getEndDate());
-    }
+        // ===== 新增：存 idempotency record =====
+        try {
+            String responseJson = objectMapper.writeValueAsString(response);
 
-    public Event getEventOrThrow(Long id) {
-        return eventRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Event not found: " + id));
+            IdempotencyRecord record = new IdempotencyRecord();
+            record.setIdemKey(idemKey);
+            record.setRequestPath(requestPath);
+            record.setRequestHash("todo"); // 下一步再做真的 hash
+            record.setStatusCode(HttpStatus.CREATED.value());
+            record.setResponseBodyJson(responseJson);
+
+            idempotencyRecordRepository.save(record);
+
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Serialize response failed");
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        // calendarService.addEvent(req.getTitle(), req.getNotes(), req.getStartDate(), req.getEndDate());
     }
 
     public void retryNotionSync(Long eventId) {

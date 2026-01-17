@@ -23,19 +23,13 @@ public class EventController {
     }
 
     @PostMapping("/events")
-    public ResponseEntity<EventResponse> schedule(@RequestBody EventRequest request) {
-        EventResponse res = eventService.schedule(request);
-        return ResponseEntity.ok(res);
-    }
-
-    @PostMapping("/events/{id}/sync")
-    public ResponseEntity<Event> sync(@PathVariable Long id) {
-        try {
-            Event event = eventService.getEventOrThrow(id);
-            return ResponseEntity.ok(event);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<EventResponse> schedule(
+            @RequestBody EventRequest request
+            ,@RequestHeader("Idempotency-Key") String idemKey
+    ) {
+//        EventResponse res = eventService.schedule(request, idemKey);
+//        return ResponseEntity.ok(res);
+        return eventService.schedule(request, idemKey);
     }
 
     // Retry endpoint

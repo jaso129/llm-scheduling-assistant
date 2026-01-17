@@ -37,3 +37,14 @@ build/
 *.env
 
 .DS_Store
+
+# Python bytecode / cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# virtualenv (如果有)
+.venv/
+venv/
+
